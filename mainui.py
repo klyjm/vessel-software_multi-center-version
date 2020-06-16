@@ -811,8 +811,10 @@ class MainWindow(QMainWindow):
     def decide_type_button_clicked(self):
         # os.system("./typeui/typeui.exe")
         # os.system(os.path.dirname(os.path.realpath(__file__)) + "\\typeui\\typeui.exe")
-        self.info_browser.insertPlainText(os.path.dirname(os.path.realpath(__file__)) + "\\typeui\\typeui.exe")
-        Popen(os.path.dirname(os.path.realpath(__file__)) + "\\typeui\\typeui.exe")
+        # self.info_browser.insertPlainText(os.path.dirname(os.path.realpath(__file__)) + "\\typeui\\typeui.exe")
+        # self.info_browser.insertPlainText(sys.argv[0])
+        # Popen(os.path.dirname(os.path.realpath(__file__)) + "\\typeui\\typeui.exe")
+        Popen(os.path.dirname(sys.argv[0]) + "\\typeui\\typeui.exe")
 
     ###信息框自动滚动###
     @Slot()
