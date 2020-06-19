@@ -1,4 +1,5 @@
-from PySide2.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSlider
+#coding:GBK
+from PySide2.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QLineEdit, QPushButton, QSpacerItem, QSizePolicy
 from PySide2.QtGui import QShowEvent, QCloseEvent, Qt
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from vtk import vtkImagePlaneWidget, vtkImageData, vtkRenderer, vtkInteractorStyleTrackballCamera, vtkDiscreteMarchingCubes, vtkImageImport, vtkLookupTable, vtkPolyDataMapper, vtkActor
@@ -31,20 +32,74 @@ class ShowResultWindow(QDialog):
         self.sliber.setOrientation(Qt.Horizontal)
         self.sliber.valueChanged.connect(self.sliber_value_changed)
         ###slice计数标签###
-        self.slice_num_label = QLabel(self)
+        # self.slice_num_label = QLabel(self)
+        # self.slice_num_label.setAlignment(Qt.AlignCenter)
+        # label_font = self.slice_num_label.font()
+        # label_font.setPointSize(16)
+        # self.slice_num_label.setFont(label_font)
+        self.slice_num_label = QLineEdit(self)
         self.slice_num_label.setAlignment(Qt.AlignCenter)
+        self.slice_num_label.setFixedWidth(90)
         label_font = self.slice_num_label.font()
         label_font.setPointSize(16)
         self.slice_num_label.setFont(label_font)
+        self.slice_num_label.returnPressed.connect(self.slice_jump_button_clicked)
+        # slice跳转按钮
+        self.slice_jump_button = QPushButton("跳转")
+        self.slice_jump_button.setFixedWidth(90)
+        self.slice_jump_button.clicked.connect(self.slice_jump_button_clicked)
+        self.slice_jump_button.setFont(label_font)
+        # 视角选项按钮
+        self.reset_button = QPushButton("重置视角")
+        self.reset_button.setFont(label_font)
+        self.reset_button.clicked.connect(self.reset_button_clicked)
+        self.zoom_amplify_button = QPushButton("放大")
+        self.zoom_amplify_button.setFont(label_font)
+        self.zoom_amplify_button.clicked.connect(self.zoom_amplify_button_clicked)
+        self.zoom_shrink_button = QPushButton("缩小")
+        self.zoom_shrink_button.setFont(label_font)
+        self.zoom_shrink_button.clicked.connect(self.zoom_shrink_button_clicked)
+        ###选点介绍###
+        self.get_point_introduction_name_label = QLabel("操作说明")
+        self.get_point_introduction_name_label.setFont(label_font)
+        self.get_point_introduction_label = QLabel(
+            "在图像外：\n鼠标左键：放大/缩小\n鼠标右键：旋转\n鼠标中键：平移")
+        self.get_point_introduction_label.setFont(label_font)
+        # 滑块布局
+        self.slice_num_layout = QHBoxLayout()
+        self.left_spacer = QSpacerItem(10, 40, hData=QSizePolicy.Expanding)
+        self.slice_num_layout.addSpacerItem(self.left_spacer)
+        self.slice_num_layout.addWidget(self.slice_num_label)
+        self.slice_num_layout.addWidget(self.slice_jump_button)
+        self.right_spacer = QSpacerItem(10, 40, hData=QSizePolicy.Expanding)
+        self.slice_num_layout.addSpacerItem(self.right_spacer)
         ###显示控件布局###
         self.show_result_layout = QHBoxLayout()
         self.show_result_layout.addWidget(self.vtkwidget_3d)
         # self.show_result_layout.addWidget(self.vtkwidget_2d)
+        # 左布局
+        self.left_layout = QVBoxLayout()
+        self.left_layout.addLayout(self.slice_num_layout)
+        self.left_layout.addWidget(self.sliber)
+        self.left_layout.addLayout(self.show_result_layout)
+        # 右布局
+        self.right_layout = QVBoxLayout()
+        self.right_layout.addWidget(self.reset_button)
+        self.right_layout.addWidget(self.zoom_amplify_button)
+        self.right_layout.addWidget(self.zoom_shrink_button)
+        self.center_spacer = QSpacerItem(10, 40, vData=QSizePolicy.Expanding)
+        self.right_layout.addSpacerItem(self.center_spacer)
+        self.right_layout.addWidget(self.get_point_introduction_name_label)
+        self.right_layout.addWidget(self.get_point_introduction_label)
         ###主布局###
-        self.main_layout = QVBoxLayout()
-        self.main_layout.addWidget(self.slice_num_label)
-        self.main_layout.addWidget(self.sliber)
-        self.main_layout.addLayout(self.show_result_layout)
+        self.main_layout = QHBoxLayout()
+        self.main_layout.addLayout(self.left_layout)
+        self.main_layout.addLayout(self.right_layout)
+        # self.main_layout = QVBoxLayout()
+        # self.main_layout.addWidget(self.slice_num_label)
+        # self.main_layout.addLayout(self.sub_layout)
+        # self.main_layout.addWidget(self.sliber)
+        # self.main_layout.addLayout(self.show_result_layout)
         self.setLayout(self.main_layout)
 
         ###数据初始化###
@@ -57,6 +112,8 @@ class ShowResultWindow(QDialog):
         self.dicom_images_2d = vtkImageImport()
         self.label = array(self.wholeExtent)
         self.label_2d = array(self.wholeExtent)
+        self.init_position = (0, 0, 0)
+        self.slice_number = 0
         self.spacing = []
 
         ###界面初始化###
@@ -113,41 +170,64 @@ class ShowResultWindow(QDialog):
         # self.dicom_images_2d.Update()
         # self.discrete_marching_cubes_2d.Update()
         # self.dicom_data_mapper_2d.Update()
-        self.PlaneWidgetZ_3d.SetSliceIndex(self.sliber.value())
+        self.slice_number = self.sliber.value()
+        self.PlaneWidgetZ_3d.SetSliceIndex(self.slice_number)
         # self.PlaneWidgetZ_2d.SetSliceIndex(self.sliber.value())
-        self.slice_num_label.setText(str(self.PlaneWidgetZ_3d.GetSliceIndex()))
+        self.slice_num_label.setText(str(self.slice_number))
         self.renderwindow_3d.Render()
         # self.renderwindow_2d.Render()
 
+    def reset_button_clicked(self):
+        # camera = vtkCamera()
+        camera = self.ren_3d.GetActiveCamera()
+        self.ren_3d.ResetCamera()
+        camera.SetPosition(self.init_position[0], self.init_position[1], self.init_position[2])
+        camera.SetViewUp(0, 1, 0)
+        self.renderwindow_3d.Render()
+
+    def zoom_amplify_button_clicked(self):
+        self.ren_3d.GetActiveCamera().Zoom(1.1)
+        self.renderwindow_3d.Render()
+        # self.ren.GetActiveCamera().SetParallelScale(self.ren.GetActiveCamera().GetParallelScale() * 1.1)
+
+    def zoom_shrink_button_clicked(self):
+        self.ren_3d.GetActiveCamera().Zoom(0.9)
+        self.renderwindow_3d.Render()
+
     def last_slice(self, obj, ev):
-        slice_number = self.PlaneWidgetZ_3d.GetSliceIndex()
+        self.slice_number = (self.slice_number - 1) % self.wholeExtent[5]
         # self.label_2d = np.zeros_like(self.label)
         # self.label_2d[slice_number, :, :] = self.label[slice_number, :, :]
         # self.dicom_images_2d.CopyImportVoidPointer(self.label_2d.tostring(), len(self.label_2d.tostring()))
         # self.dicom_images_2d.Update()
         # self.discrete_marching_cubes_2d.Update()
         # self.dicom_data_mapper_2d.Update()
-        self.PlaneWidgetZ_3d.SetSliceIndex((slice_number - 1) % self.wholeExtent[5])
+        self.PlaneWidgetZ_3d.SetSliceIndex(self.slice_number)
         # self.PlaneWidgetZ_2d.SetSliceIndex((slice_number - 1) % self.wholeExtent[5])
-        self.slice_num_label.setText(str(self.PlaneWidgetZ_3d.GetSliceIndex()))
-        self.sliber.setValue(slice_number - 1)
+        self.slice_num_label.setText(str(self.slice_number))
+        self.sliber.setValue(self.slice_number)
         self.renderwindow_3d.Render()
         # self.renderwindow_2d.Render()
 
     def next_slice(self, obj, ev):
-        slice_number = self.PlaneWidgetZ_3d.GetSliceIndex()
+        self.slice_number = (self.slice_number + 1) % self.wholeExtent[5]
         # self.label_2d = np.zeros_like(self.label)
         # self.label_2d[slice_number, :, :] = self.label[slice_number, :, :]
         # self.dicom_images_2d.CopyImportVoidPointer(self.label_2d.tostring(), len(self.label_2d.tostring()))
         # self.dicom_images_2d.Update()
         # self.discrete_marching_cubes_2d.Update()
         # self.dicom_data_mapper_2d.Update()
-        self.PlaneWidgetZ_3d.SetSliceIndex((slice_number + 1) % self.wholeExtent[5])
+        self.PlaneWidgetZ_3d.SetSliceIndex(self.slice_number)
         # self.PlaneWidgetZ_2d.SetSliceIndex((slice_number + 1) % self.wholeExtent[5])
-        self.slice_num_label.setText(str(self.PlaneWidgetZ_3d.GetSliceIndex()))
-        self.sliber.setValue(slice_number + 1)
+        self.slice_num_label.setText(str(self.slice_number))
+        self.sliber.setValue(self.slice_number)
         self.renderwindow_3d.Render()
         # self.renderwindow_2d.Render()
+
+    def slice_jump_button_clicked(self):
+        self.slice_number = int(self.slice_num_label.text()) % self.wholeExtent[5]
+        self.PlaneWidgetZ_3d.SetSliceIndex(self.slice_number)
+        self.sliber.setValue(self.slice_number)
 
     def showEvent(self, arg__1: QShowEvent):
         self.wholeExtent = self.Image.GetExtent()
@@ -261,6 +341,8 @@ class ShowResultWindow(QDialog):
         self.sliber.setMaximum(self.wholeExtent[5])
         self.sliber.setValue(self.PlaneWidgetZ_3d.GetSliceIndex())
         self.slice_num_label.setText(str(self.PlaneWidgetZ_3d.GetSliceIndex()))
+        self.ren_3d.ResetCamera()
+        self.init_position = self.ren_3d.GetActiveCamera().GetPosition()
         arg__1
 
     def closeEvent(self, arg__1: QCloseEvent):

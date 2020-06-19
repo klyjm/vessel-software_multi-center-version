@@ -111,6 +111,17 @@ class MainWindow(QMainWindow):
         self.LowerThreshold_label.setFont(self.button_font)
         self.LowerThreshold_edit = QLineEdit("100")
         self.LowerThreshold_edit.setFont(self.button_font)
+        # 流程状态
+        self.non_occluded_state_name_label = QLabel("未闭塞段：")
+        self.non_occluded_state_name_label.setFont(label_font)
+        self.non_occluded_state_name_label.setAlignment(Qt.AlignRight)
+        self.occluded_state_name_label = QLabel("闭塞段：")
+        self.occluded_state_name_label.setFont(label_font)
+        self.occluded_state_name_label.setAlignment(Qt.AlignRight)
+        self.non_occluded_state_label = QLabel("未选点")
+        self.non_occluded_state_label.setFont(label_font)
+        self.occluded_state_label = QLabel("未选点")
+        self.occluded_state_label.setFont(label_font)
         # 选取非闭塞段端点按钮###
         self.non_occluded_button = QPushButton("选取非闭塞段端点")
         self.non_occluded_button.clicked.connect(self.non_occluded_button_clicked)
@@ -143,7 +154,7 @@ class MainWindow(QMainWindow):
         # self.show_3D_result_button.setVisible(False)
         self.show_3D_result_button.setFont(self.button_font)
         ###patch保存按钮###
-        self.save_patch_button = QPushButton("保存patch")
+        self.save_patch_button = QPushButton("保存提取结果")
         self.save_patch_button.clicked.connect(self.save_patch_button_clicked)
         self.save_patch_button.setEnabled(False)
         # self.save_patch_button.setVisible(False)
@@ -183,6 +194,12 @@ class MainWindow(QMainWindow):
         self.Threshold_layout = QHBoxLayout()
         self.Threshold_layout.addLayout(self.UpperThreshold_layout)
         self.Threshold_layout.addLayout(self.LowerThreshold_layout)
+        # 流程状态布局
+        self.state_layout = QHBoxLayout()
+        self.state_layout.addWidget(self.non_occluded_state_name_label)
+        self.state_layout.addWidget(self.non_occluded_state_label)
+        self.state_layout.addWidget(self.occluded_state_name_label)
+        self.state_layout.addWidget(self.occluded_state_label)
         ###灰度值标签布局###
         self.value_layout = QHBoxLayout()
         self.value_layout.addWidget(self.value_name_label)
@@ -194,6 +211,7 @@ class MainWindow(QMainWindow):
         self.patch_type_layout.addWidget(self.patch_viewer, Qt.AlignCenter)
         self.patch_type_layout.addLayout(self.select_leg_layout)
         self.patch_type_layout.addLayout(self.Threshold_layout)
+        self.patch_type_layout.addLayout(self.state_layout)
         ###显示控件布局###
         self.viewer_layout = QHBoxLayout()
         self.viewer_layout.setAlignment(Qt.AlignCenter)
@@ -262,9 +280,13 @@ class MainWindow(QMainWindow):
         self.conf_all = []
         self.right_labels = []
         self.slice_number = 0
+        self.non_occluded_state_flag = 0
+        self.occluded_state_flag = 0
         self.show()
         if self.embedded_dir_flag:
             self.open_directory_button_clicked()
+            self.repaint()
+            self.vtkWidget.repaint()
 
     ###打开文件夹按钮功能函数###
     def open_directory_button_clicked(self):
@@ -348,6 +370,10 @@ class MainWindow(QMainWindow):
             self.get_non_occluded_flag = False
             self.get_vessel_button.setEnabled(False)
             self.decide_type_button.setEnabled(False)
+            self.non_occluded_state_flag = 0
+            self.occluded_state_flag = 0
+            self.occluded_state_label.setText("未选点")
+            self.non_occluded_state_label.setText("未选点")
             # self.all_data_set = None
             # self.all_data_set = []
             # for file_name in allfile:
@@ -360,25 +386,31 @@ class MainWindow(QMainWindow):
 
     # 滚轮向上滚动功能函数
     def last_slice(self, obj, ev):
-        self.imageviewer.SetSlice((self.slice_number - 1) % self.imageviewer.GetSliceMax())
+        self.slice_number = (self.slice_number - 1) % self.imageviewer.GetSliceMax()
+        self.imageviewer.SetSlice(self.slice_number)
         if self.patch_flag:
-            self.imageviewer_1.SetSlice((self.slice_number - 1) % self.imageviewer_1.GetSliceMax())
+            self.imageviewer_1.SetSlice(self.slice_number)
         self.slice_num_label.setText(str(self.imageviewer.GetSlice()))
-        self.sliber.setValue(self.slice_number - 1)
+        self.vtkWidget.GetRenderWindow().Render()
+        self.imageviewer.Render()
+        self.sliber.setValue(self.slice_number)
 
     # 滚轮向下滚动功能函数
     def next_slice(self, obj, ev):
-        self.imageviewer.SetSlice((self.slice_number + 1) % self.imageviewer.GetSliceMax())
+        self.slice_number = (self.slice_number + 1) % self.imageviewer.GetSliceMax()
+        self.imageviewer.SetSlice(self.slice_number)
         if self.patch_flag:
-            self.imageviewer_1.SetSlice((self.slice_number + 1) % self.imageviewer_1.GetSliceMax())
+            self.imageviewer_1.SetSlice(self.slice_number)
         self.slice_num_label.setText(str(self.imageviewer.GetSlice()))
-        self.sliber.setValue(self.slice_number + 1)
+        self.vtkWidget.GetRenderWindow().Render()
+        self.imageviewer.Render()
+        self.sliber.setValue(self.slice_number)
 
     def slice_jump_button_clicked(self):
         self.slice_number = int(self.slice_num_label.text()) % self.imageviewer.GetSliceMax()
         self.imageviewer.SetSlice(self.slice_number)
         if self.patch_flag:
-            self.imageviewer_1.SetSlice(self.slice_number % self.imageviewer_1.GetSliceMax())
+            self.imageviewer_1.SetSlice(self.slice_number)
         self.sliber.setValue(self.slice_number)
 
     def mouse_move(self, obj, ev):
@@ -409,8 +441,11 @@ class MainWindow(QMainWindow):
     @Slot()
     def non_occluded_button_clicked(self):
         self.flag = False
-        self.end_points = self.vtk_get_point(title="非闭塞段选点")
-        if len(self.end_points) >= 2:
+        temp_points = self.vtk_get_point(title="非闭塞段选点")
+        # self.end_points = self.vtk_get_point(title="非闭塞段选点")
+        # if len(self.end_points) >= 2:
+        if len(temp_points) >= 2:
+            self.end_points = temp_points
             self.get_vessel_button.setEnabled(True)
             self.get_non_occluded_flag = False
             self.get_non_occluded_button.setEnabled(True)
@@ -418,6 +453,8 @@ class MainWindow(QMainWindow):
             self.show_3D_result_button.setEnabled(False)
             self.save_patch_button.setEnabled(False)
             self.decide_type_button.setEnabled(False)
+            self.non_occluded_state_flag = 1
+            self.non_occluded_state_label.setText("已选点")
             self.patch_flag = False
             sourcepoints = []
             targetpoints = []
@@ -524,6 +561,8 @@ class MainWindow(QMainWindow):
             self.decide_type_button.setEnabled(False)
             # self.decide_type_button.setEnabled(True)
             self.get_non_occluded_flag = True
+            self.non_occluded_state_flag = 2
+            self.non_occluded_state_label.setText("已提取")
             self.info_browser.insertPlainText("非闭塞段血管提取完成！可拖动滑块在小窗口中查看patch\n")
 
     # 滑块功能函数
@@ -545,8 +584,11 @@ class MainWindow(QMainWindow):
         self.flag = True
         # self.center = []
         # self.capture_mouse(self.image_data)
-        self.center = self.vtk_get_point(title="闭塞段选点")
-        if len(self.center) > 2:
+        temp_points = self.vtk_get_point(title="闭塞段选点")
+        # self.center = self.vtk_get_point(title="闭塞段选点")
+        # if len(self.center) > 2:
+        if len(temp_points) > 2:
+            self.center = temp_points
             self.get_vessel_button.setEnabled(True)
             self.show_2D_result_button.setEnabled(False)
             self.show_3D_result_button.setEnabled(False)
@@ -554,6 +596,8 @@ class MainWindow(QMainWindow):
             self.decide_type_button.setEnabled(False)
             self.patch_flag = False
             self.flag = False
+            self.occluded_state_flag = 1
+            self.occluded_state_label.setText("已选点")
 
     # 提取血管按钮功能函数
     def get_vessel_button_clicked(self):
@@ -635,6 +679,12 @@ class MainWindow(QMainWindow):
             self.save_patch_button.setEnabled(True)
             self.decide_type_button.setEnabled(False)
             # self.decide_type_button.setEnabled(True)
+            if self.non_occluded_state_flag == 1:
+                self.non_occluded_state_flag = 2
+                self.non_occluded_state_label.setText("已提取")
+            if self.occluded_state_flag == 1:
+                self.occluded_state_flag = 2
+                self.occluded_state_label.setText("已提取")
             self.info_browser.insertPlainText("血管提取完成！可拖动滑块在小窗口中查看patch。\n")
 
     # 结果展示按钮功能函数
@@ -701,7 +751,7 @@ class MainWindow(QMainWindow):
         # a.ren_3d.AddActor(actor_dicom_3d)
         a.Image = self.imageviewer.GetInput()
         a.label = deepcopy(self.numpy_label.astype(uint8))
-        a.show()
+        a.exec_()
         # render.ResetCamera()
         # self.ren.AddActor(actor_dicom_3d)
         # self.ren.ResetCamera()
@@ -728,18 +778,18 @@ class MainWindow(QMainWindow):
         img_show = filter_intensity.Execute(img)
         while True:
             slice_num = getTrackbarPos('Slice', 'Segmentation(exit with \'Q\')')
-            if planes == 't':
-                itk_display = LabelOverlay(img_show[:, :, slice_num], LabelContour(label[:, :, slice_num]),
-                                                1.0)
-            elif planes == 's':
-                itk_display = LabelOverlay(img_show[:, slice_num, :], LabelContour(label[:, slice_num, :]),
-                                                1.0)
-            elif planes == 'c':
-                itk_display = LabelOverlay(img_show[slice_num, :, :], LabelContour(label[slice_num, :, :]),
-                                                1.0)
-            else:
-                break
-
+            # if planes == 't':
+            #     itk_display = LabelOverlay(img_show[:, :, slice_num], LabelContour(label[:, :, slice_num]),
+            #                                     1.0)
+            # elif planes == 's':
+            #     itk_display = LabelOverlay(img_show[:, slice_num, :], LabelContour(label[:, slice_num, :]),
+            #                                     1.0)
+            # elif planes == 'c':
+            #     itk_display = LabelOverlay(img_show[slice_num, :, :], LabelContour(label[slice_num, :, :]),
+            #                                     1.0)
+            # else:
+            #     break
+            itk_display = LabelOverlay(img_show[:, :, slice_num], LabelContour(label[:, :, slice_num]),1.0)
             img_display = GetArrayFromImage(itk_display)
             imshow('Segmentation(exit with \'Q\')', uint8(img_display))
             if 0xFF & waitKey(10) == ord('q'):
@@ -754,7 +804,7 @@ class MainWindow(QMainWindow):
     def save_patch_button_clicked(self):
         save_path = QFileDialog.getExistingDirectory(self, "保存路径", self.save_path, QFileDialog.ShowDirsOnly)
         if len(save_path) > 0:
-            self.info_browser.insertPlainText("pactch保存中...\n")
+            self.info_browser.insertPlainText("提取结果保存中...\n")
             self.repaint()
             if self.seedname == 'left leg':
                 leg = 'l'
@@ -777,7 +827,7 @@ class MainWindow(QMainWindow):
                 patch_img_name = "{}_{}.txt".format(leg, slice_num)
                 patch_path = os.path.join(patch_dir, patch_img_name)
                 savetxt(patch_path, self.txt_patch_data[:, :, slice_num], fmt='%d', delimiter=' ')
-            self.info_browser.insertPlainText("patch保存至" + patch_dir + "完成!\n")
+            # self.info_browser.insertPlainText("patch保存至" + patch_dir + "完成!\n")
             # patch_dir = os.path.join(save_path, self.dir_name + "_dicom")
             # if not os.path.exists(patch_dir):
             #     os.makedirs(patch_dir)
@@ -800,10 +850,22 @@ class MainWindow(QMainWindow):
             # seg.SetSpacing(self.dcm.GetSpacing())
             # seg.SetDirection(self.dcm.GetDirection())
             # sitk.WriteImage(seg, patch_dir, True)
-            self.info_browser.insertPlainText("patch保存至" + patch_dir + "完成!\n")
-            # patch_dir = save_path + '/' + self.dir_name + "_" + leg + "_center.txt"
-            # real_center = np.concatenate((np.array(self.l_center), np.array(self.r_center)))
-            # np.savetxt(patch_dir, real_center, fmt='%f', delimiter=' ')
+            self.info_browser.insertPlainText("图像块保存至" + patch_dir + "完成!\n")
+            if len(self.l_center) > 0:
+                patch_dir = save_path + '/' + self.dir_name + "_l_center.txt"
+                savetxt(patch_dir,self.l_center, fmt='%f', delimiter=' ')
+                self.info_browser.insertPlainText("左腿血管中心点保存至" + patch_dir + "完成!\n")
+            else:
+                self.info_browser.insertPlainText("左腿血管无提取结果")
+            if len(self.r_center) > 0:
+                patch_dir = save_path + '/' + self.dir_name + "_r_center.txt"
+                savetxt(patch_dir,self.r_center, fmt='%f', delimiter=' ')
+                self.info_browser.insertPlainText("右腿血管中心点保存至" + patch_dir + "完成!\n")
+            else:
+                self.info_browser.insertPlainText("右腿血管无提取结果")
+            # real_center = concatenate((array(self.l_center), array(self.r_center)))
+            # savetxt(patch_dir, real_center, fmt='%f', delimiter=' ')
+            # self.info_browser.insertPlainText("血管中心点保存至" + patch_dir + "完成!\n")
             self.decide_type_button.setEnabled(True)
 
     ###分型按钮功能函数###
@@ -824,7 +886,9 @@ class MainWindow(QMainWindow):
 
     ###vtk选点###
     def vtk_get_point(self, title="选点"):
-        get_point_widget = GetPointWindow(selected_points=self.end_points)
+        temp_points = self.end_points.copy()
+        temp_points.extend(self.center)
+        get_point_widget = GetPointWindow(selected_points=temp_points)
         get_point_widget.setWindowTitle(title)
         get_point_widget.setWindowFlag(Qt.WindowMaximizeButtonHint)
         get_point_widget.setWindowFlag(Qt.WindowMinimizeButtonHint)

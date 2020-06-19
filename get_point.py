@@ -2,11 +2,11 @@
 from PySide2.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QTextBrowser, QPushButton, QLineEdit, QSpacerItem, QSizePolicy
 from PySide2.QtGui import QShowEvent, QCloseEvent, Qt
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from vtk import vtkImagePlaneWidget, vtkImageData, vtkGlyph3D, vtkSphereSource, vtkRenderer, vtkCellPicker, vtkPolyData, vtkPolyDataMapper, vtkActor, vtkPoints, vtkInteractorStyleTrackballCamera, vtkTextActor
+from vtk import vtkImagePlaneWidget, vtkImageData, vtkGlyph3D, vtkSphereSource, vtkRenderer, vtkCellPicker, vtkPolyData, vtkPolyDataMapper, vtkActor, vtkPoints, vtkInteractorStyleTrackballCamera, vtkTextActor, vtkCamera
 
 
 class GetPointWindow(QDialog):
-    
+
     def __init__(self, parent=None, selected_points=None):
         QDialog.__init__(self, parent)
         self.vtkwidget = QVTKRenderWindowInteractor(self)
@@ -40,10 +40,18 @@ class GetPointWindow(QDialog):
         self.get_point_introduction_name_label.setFont(label_font)
         self.get_point_introduction_label = QLabel("在图像中：\nCtrl+鼠标右键/中键：选点\nShift+鼠标右键/中键：取消当前层片选点\n在图像外：\n鼠标左键：放大/缩小\n鼠标右键：旋转\n鼠标中键：平移")
         self.get_point_introduction_label.setFont(label_font)
+        # 视角选项按钮
+        self.reset_button = QPushButton("重置视角")
+        self.reset_button.setFont(label_font)
+        self.reset_button.clicked.connect(self.reset_button_clicked)
+        self.zoom_amplify_button = QPushButton("放大")
+        self.zoom_amplify_button.setFont(label_font)
+        self.zoom_amplify_button.clicked.connect(self.zoom_amplify_button_clicked)
+        self.zoom_shrink_button = QPushButton("缩小")
+        self.zoom_shrink_button.setFont(label_font)
+        self.zoom_shrink_button.clicked.connect(self.zoom_shrink_button_clicked)
         ###标点信息框###
         self.point_display_browser_name_label = QLabel("标点信息:")
-        self.reset_button = QPushButton("重置缩放")
-        self.reset_button.clicked.connect(self.reset_button_clicked)
         self.point_display_browser_name_label.setFont(label_font)
         self.point_display_browser = QTextBrowser()
         self.point_display_browser.setFont(label_font)
@@ -51,8 +59,15 @@ class GetPointWindow(QDialog):
         self.selected_point_display_browser_name_label = QLabel("已选点：")
         self.selected_point_display_browser_name_label.setFont(label_font)
         self.selected_point_display_browser = QTextBrowser()
-        self.selected_point_display_browser.setText(str(selected_points))
+        self.selected_point_display_browser.setText(str(selected_points).replace('[','').replace(']',''))
         self.selected_point_display_browser.setFont(label_font)
+        # 退出按钮
+        self.ok_button = QPushButton("确定")
+        self.ok_button.setFont(label_font)
+        self.ok_button.clicked.connect(self.ok_button_clicked)
+        self.cancel_button = QPushButton("取消")
+        self.cancel_button.setFont(label_font)
+        self.cancel_button.clicked.connect(self.cancel_button_clicked)
         # slice标签布局
         self.slice_label_layout = QHBoxLayout()
         self.left_spacer = QSpacerItem(10, 40, hData=QSizePolicy.Expanding)
@@ -65,6 +80,8 @@ class GetPointWindow(QDialog):
         self.sub_layout = QHBoxLayout()
         self.sub_layout.addWidget(self.point_display_browser_name_label)
         self.sub_layout.addWidget(self.reset_button)
+        self.sub_layout.addWidget(self.zoom_amplify_button)
+        self.sub_layout.addWidget(self.zoom_shrink_button)
         self.point_display_layout = QVBoxLayout()
         self.point_display_layout.addLayout(self.sub_layout)
         self.point_display_layout.addWidget(self.point_display_browser)
@@ -72,7 +89,15 @@ class GetPointWindow(QDialog):
         self.point_display_layout.addWidget(self.selected_point_display_browser)
         self.point_display_layout.addWidget(self.get_point_introduction_name_label)
         self.point_display_layout.addWidget(self.get_point_introduction_label)
-        ###选点控件布局###
+        # 退出按钮布局
+        self.exit_layout = QHBoxLayout()
+        self.exit_layout.addWidget(self.ok_button)
+        self.exit_layout.addWidget(self.cancel_button)
+        # 右侧布局
+        self.right_layout = QVBoxLayout()
+        self.right_layout.addLayout(self.point_display_layout)
+        self.right_layout.addLayout(self.exit_layout)
+        # 选点控件布局/左侧布局###
         self.get_point_layout = QVBoxLayout()
         # self.get_point_layout.addWidget(self.slice_num_label)
         self.get_point_layout.addLayout(self.slice_label_layout)
@@ -81,7 +106,7 @@ class GetPointWindow(QDialog):
         ###主布局###
         self.main_layout = QHBoxLayout()
         self.main_layout.addLayout(self.get_point_layout)
-        self.main_layout.addLayout(self.point_display_layout)
+        self.main_layout.addLayout(self.right_layout)
         self.setLayout(self.main_layout)
 
         ###界面初始化###
@@ -120,10 +145,25 @@ class GetPointWindow(QDialog):
         self.point_list = []
         self.point_z = []
         self.slice_number = 0
+        self.init_position = (0.0, 0.0, 0.0)
 
     def reset_button_clicked(self):
+        # camera = vtkCamera()
+        camera = self.ren.GetActiveCamera()
         self.ren.ResetCamera()
+        camera.SetPosition(self.init_position[0], self.init_position[1], self.init_position[2])
+        camera.SetViewUp(0, 1, 0)
         self.renderwindow.Render()
+
+    def zoom_amplify_button_clicked(self):
+        self.ren.GetActiveCamera().Zoom(1.1)
+        self.renderwindow.Render()
+        # self.ren.GetActiveCamera().SetParallelScale(self.ren.GetActiveCamera().GetParallelScale() * 1.1)
+
+    def zoom_shrink_button_clicked(self):
+        self.ren.GetActiveCamera().Zoom(0.9)
+        self.renderwindow.Render()
+        # self.ren.GetActiveCamera().SetParallelScale(self.ren.GetActiveCamera().GetParallelScale() * 0.9)
 
     def sliber_value_changed(self):
         self.PlaneWidgetZ.SetSliceIndex(self.sliber.value())
@@ -133,7 +173,7 @@ class GetPointWindow(QDialog):
 
     def slice_jump_button_clicked(self):
         self.slice_number = int(self.slice_num_label.text()) % self.wholeExtent[5]
-        self.PlaneWidgetZ.SetSliceIndex(self.sliber.value())(self.slice_number)
+        self.PlaneWidgetZ.SetSliceIndex(self.slice_number)
         self.sliber.setValue(self.slice_number)
 
     def AddSeed(self, obj, event):
@@ -178,7 +218,7 @@ class GetPointWindow(QDialog):
                 self.Seeds.SetPoints(new_points)
                 self.point_z.pop(deleteid)
                 self.point_list.pop(deleteid)
-                self.point_display_browser.setText(str(self.point_list))
+                self.point_display_browser.setText(str(self.point_list).replace('[', '').replace(']', ''))
             self.Seeds.Modified()
             self.renderwindow.Render()
 
@@ -200,7 +240,7 @@ class GetPointWindow(QDialog):
         self.Seeds.Initialize()
         seedPoints = vtkPoints()
         self.Seeds.SetPoints(seedPoints)
-        
+
     def showEvent(self, arg__1: QShowEvent):
         # self.iren.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
         # self.iren.GetInteractorStyle().KeyPressActivationOff()
@@ -283,7 +323,19 @@ class GetPointWindow(QDialog):
         self.sliber.setValue(self.PlaneWidgetZ.GetSliceIndex())
         self.slice_num_label.setText(str(self.PlaneWidgetZ.GetSliceIndex()))
         self.slice_number = self.PlaneWidgetZ.GetSliceIndex()
+        self.ren.ResetCamera()
+        camera = self.ren.GetActiveCamera()
+        self.init_position = camera.GetPosition()
         arg__1
+
+
+    def ok_button_clicked(self):
+        self.close()
+
+
+    def cancel_button_clicked(self):
+        self.point_list = []
+        self.close()
 
     def closeEvent(self, arg__1: QCloseEvent):
         self.PlaneWidgetY.Off()
