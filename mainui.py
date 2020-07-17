@@ -32,14 +32,6 @@ class MainWindow(QMainWindow):
         self.embedded_dir_flag = False
         self.dir_path = None
         self.save_path = ""
-        if len(argv) >= 3:
-            self.dir_path = argv[1]
-            if len(self.dir_path) > 0:
-                self.embedded_dir_flag = True
-            self.save_path = argv[2]
-            if len(self.save_path) > 0:
-                if not os.path.exists(self.save_path):
-                    os.makedirs(self.save_path)
         # 打开DICOM文件夹按钮###
         self.open_directory_button = QPushButton("打开文件夹")
         self.open_directory_button.clicked.connect(self.open_directory_button_clicked)
@@ -282,9 +274,21 @@ class MainWindow(QMainWindow):
         self.slice_number = 0
         self.non_occluded_state_flag = 0
         self.occluded_state_flag = 0
+        self.work_path = os.path.dirname(sys.argv[0])
+        self.work_path = 'C:/Users/klyjm/Desktop/1234/1.vesselsoftware/vesselsoftware-mcv'
+        self.root_path = os.path.split(os.path.split(self.work_path)[0])[0]
+        if len(argv) >= 2:
+            self.relative_dir_path = argv[1]
+            if len(self.relative_dir_path) > 0:
+                self.embedded_dir_flag = True
+                self.dir_name = argv[1].split('\\')[1]
+                self.dir_path = os.path.join(self.root_path, self.relative_dir_path)
+                self.save_path = os.path.join(os.path.join(self.root_path, '4.processdata/patch'), self.dir_name)
+                # self.type_path = os.path.join(os.path.join(self.root_path, '4.processdata/UIresult'), self.dir_name)
         self.show()
         if self.embedded_dir_flag:
             self.open_directory_button_clicked()
+            self.embedded_dir_flag = True
             self.repaint()
             self.vtkWidget.repaint()
 
@@ -802,8 +806,9 @@ class MainWindow(QMainWindow):
     # patch保存按钮功能函数###
     @Slot()
     def save_patch_button_clicked(self):
-        save_path = QFileDialog.getExistingDirectory(self, "保存路径", self.save_path, QFileDialog.ShowDirsOnly)
-        if len(save_path) > 0:
+        if not self.embedded_dir_flag:
+            self.save_path = QFileDialog.getExistingDirectory(self, "保存路径", self.save_path, QFileDialog.ShowDirsOnly)
+        if len(self.save_path) > 0:
             self.info_browser.insertPlainText("提取结果保存中...\n")
             self.repaint()
             if self.seedname == 'left leg':
@@ -819,7 +824,7 @@ class MainWindow(QMainWindow):
             #     patch_path = os.path.join(patch_dir, patch_img_name)
             #     cv.imwrite(patch_path, np.uint8(self.patch_data[:, :, slice_num]))
             # self.info_browser.insertPlainText("patch保存至" + patch_dir + "完成!\n")
-            patch_dir = os.path.join(save_path, self.dir_name + "_txt")
+            patch_dir = os.path.join(self.save_path, self.dir_name + "_txt")
             if not os.path.exists(patch_dir):
                 os.makedirs(patch_dir)
             for center in self.vessel_center:
@@ -852,17 +857,17 @@ class MainWindow(QMainWindow):
             # sitk.WriteImage(seg, patch_dir, True)
             self.info_browser.insertPlainText("图像块保存至" + patch_dir + "完成!\n")
             if len(self.l_center) > 0:
-                patch_dir = save_path + '/' + self.dir_name + "_l_center.txt"
-                savetxt(patch_dir,self.l_center, fmt='%f', delimiter=' ')
+                patch_dir = self.save_path + '/' + self.dir_name + "_l_center.txt"
+                savetxt(patch_dir, self.l_center, fmt='%f', delimiter=' ')
                 self.info_browser.insertPlainText("左腿血管中心点保存至" + patch_dir + "完成!\n")
             else:
-                self.info_browser.insertPlainText("左腿血管无提取结果")
+                self.info_browser.insertPlainText("左腿血管无提取结果\n")
             if len(self.r_center) > 0:
-                patch_dir = save_path + '/' + self.dir_name + "_r_center.txt"
-                savetxt(patch_dir,self.r_center, fmt='%f', delimiter=' ')
+                patch_dir = self.save_path + '/' + self.dir_name + "_r_center.txt"
+                savetxt(patch_dir, self.r_center, fmt='%f', delimiter=' ')
                 self.info_browser.insertPlainText("右腿血管中心点保存至" + patch_dir + "完成!\n")
             else:
-                self.info_browser.insertPlainText("右腿血管无提取结果")
+                self.info_browser.insertPlainText("右腿血管无提取结果\n")
             # real_center = concatenate((array(self.l_center), array(self.r_center)))
             # savetxt(patch_dir, real_center, fmt='%f', delimiter=' ')
             # self.info_browser.insertPlainText("血管中心点保存至" + patch_dir + "完成!\n")
@@ -876,7 +881,7 @@ class MainWindow(QMainWindow):
         # self.info_browser.insertPlainText(os.path.dirname(os.path.realpath(__file__)) + "\\typeui\\typeui.exe")
         # self.info_browser.insertPlainText(sys.argv[0])
         # Popen(os.path.dirname(os.path.realpath(__file__)) + "\\typeui\\typeui.exe")
-        Popen(os.path.dirname(sys.argv[0]) + "\\typeui\\typeui.exe")
+        Popen([self.work_path + "\\typeui\\typeui.exe", os.path.join(self.save_path,  self.dir_name + "_txt")])
 
     ###信息框自动滚动###
     @Slot()
